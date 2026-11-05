@@ -35,7 +35,21 @@ case "$ver" in
   *OpenSSH_*) fixed=0 ;;
   *) fixed=0; unsure=1 ;;
 esac
-# distros may backport without bumping the version; alpine bumps it, others say so in their changelog.
+# distros backport without bumping the upstream version. alpine bumps only the pkgrel,
+# so sshd -V on a patched 3.22 still prints OpenSSH_10.0p2. ask apk instead.
+if [ $fixed = 0 ] && command -v apk >/dev/null 2>&1 && [ -f /etc/alpine-release ]; then
+  inst=$(apk info -v 2>/dev/null | grep -E '^openssh-server(-pam)?-[0-9]' | head -1 | sed -E 's/^openssh-server(-pam)?-//')
+  case "$(cut -d. -f1,2 /etc/alpine-release)" in
+    3.16) need=9.0_p1-r6   ;; 3.17) need=9.1_p1-r7  ;; 3.18) need=9.3_p2-r4 ;;
+    3.19) need=9.6_p1-r3   ;; 3.20) need=9.7_p1-r6  ;; 3.21) need=9.9_p2-r1 ;;
+    3.22) need=10.0_p1-r11 ;; 3.23) need=10.2_p1-r1 ;; 3.24) need=10.3_p1-r2 ;;
+    *) need= ;;
+  esac
+  if [ -n "$inst" ] && [ -n "$need" ]; then
+    say "openssh-server pkg" "$inst (fixed: $need)"
+    if [ "$(apk version -t "$inst" "$need")" != "<" ]; then fixed=1; fi
+  fi
+fi
 
 # 3. pam?
 pam_built=0
